@@ -7,7 +7,7 @@ from src.residual_denoising_diffusion_pytorch import (ResidualDiffusion,
                                                       set_seed)
 
 # init 
-os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(str(e) for e in [0])
+os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(str(e) for e in [2])
 sys.stdout.flush()
 set_seed(10)
 debug = False
@@ -44,10 +44,16 @@ if condition:
                 "/home/liu/disk12t/liu_data/shadow_removal_with_val_dataset/ISTD_Dataset_arg/data_val/ISTD_shadow_test.flist",
                 "/home/liu/disk12t/liu_data/shadow_removal_with_val_dataset/ISTD_Dataset_arg/data_val/ISTD_mask_test.flist"]
     else:
+        """
         folder = ["/home/ljw/data-set/program/diffusion/dataset/deraing_raindrop/raindrop_data/train_gt.flist",
                 "/home/ljw/data-set/program/diffusion/dataset/deraing_raindrop/raindrop_data/train_input.flist",
                 "/home/ljw/data-set/program/diffusion/dataset/deraing_raindrop/raindrop_data/test_gt.flist",
                 "/home/ljw/data-set/program/diffusion/dataset/deraing_raindrop/raindrop_data/test_input.flist"]
+        """
+        folder = ["/home/quyu/16_exps/datasets/RESIDE-6K/flists/train_gt.flist",
+                "/home/quyu/16_exps/datasets/RESIDE-6K/flists/train_hazy.flist",
+                "/home/quyu/16_exps/datasets/RESIDE-6K/flists/test_gt.flist",
+                "/home/quyu/16_exps/datasets/RESIDE-6K/flists/test_hazy.flist"]
     train_batch_size = 1
     num_samples = 1
     sum_scale = 1
@@ -124,7 +130,8 @@ if not trainer.accelerator.is_local_main_process:
     pass
 else:
     trainer.load(trainer.train_num_steps//save_and_sample_every)
-    trainer.set_results_folder('./results/test_timestep_'+str(sampling_timesteps))
+    #trainer.set_results_folder('./results/test_timestep_'+str(sampling_timesteps))
+    trainer.set_results_folder('./results/dehazing_test_timestep_' + str(sampling_timesteps))
     trainer.test(last=True)
 
 # trainer.set_results_folder('./results/test_sample')
