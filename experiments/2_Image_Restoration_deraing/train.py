@@ -50,10 +50,10 @@ if condition:
                 "/home/ljw/data-set/program/diffusion/dataset/deraing_raindrop/raindrop_data/test_gt.flist",
                 "/home/ljw/data-set/program/diffusion/dataset/deraing_raindrop/raindrop_data/test_input.flist"]
         """
-        folder = ["/home/quyu/16_exps/datasets/RESIDE-6K/flists/train_gt.flist",
-                "/home/quyu/16_exps/datasets/RESIDE-6K/flists/train_hazy.flist",
-                "/home/quyu/16_exps/datasets/RESIDE-6K/flists/test_gt.flist",
-                "/home/quyu/16_exps/datasets/RESIDE-6K/flists/test_hazy.flist"]
+        folder = ["/home/quyu/16_exps/datasets/Rain13K/flists/train_gt.flist",
+                "/home/quyu/16_exps/datasets/Rain13K/flists/train_input.flist",
+                "/home/quyu/16_exps/datasets/Rain13K/flists/test_gt.flist",
+                "/home/quyu/16_exps/datasets/Rain13K/flists/test_input.flist"]
     train_batch_size = 1
     num_samples = 1
     sum_scale = 1
@@ -117,10 +117,12 @@ trainer = Trainer(
     generation = False
 )
 
+"""
 if not trainer.accelerator.is_local_main_process:
     pass
 else:
     trainer.load(80)
+"""
 
 # train
 trainer.train()
