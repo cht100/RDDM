@@ -1275,10 +1275,6 @@ class Trainer(object):
                            update_every=ema_update_every)
 
             self.set_results_folder(results_folder)
-            self.log_path = self.results_folder / 'training_log.csv'
-            if not self.log_path.exists():
-                with open(self.log_path, 'w') as f:
-                    f.write('step,loss,lr\n')
 
         # step counter state
 
@@ -1289,13 +1285,6 @@ class Trainer(object):
         self.model, self.opt = self.accelerator.prepare(self.model, self.opt)
         device = self.accelerator.device
         self.device = device
-
-    def log_train_step(self, loss):
-        if not self.accelerator.is_local_main_process:
-            return
-        lr = self.opt.param_groups[0]['lr']
-        with open(self.log_path, 'a') as f:
-            f.write(f'{self.step},{loss:.8f},{lr:.8e}\n')
 
     def save(self, milestone):
         if not self.accelerator.is_local_main_process:
@@ -1370,9 +1359,6 @@ class Trainer(object):
                 if accelerator.is_main_process:
                     self.ema.to(self.device)
                     self.ema.update()
-
-                    if self.step == 1 or self.step % 100 == 0:
-                        self.log_train_step(total_loss)
 
                     if self.step != 0 and self.step % self.save_and_sample_every == 0:
                         milestone = self.step // self.save_and_sample_every
