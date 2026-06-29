@@ -1,0 +1,138 @@
+import argparse
+import os
+import sys
+from types import ModuleType
+from pathlib import Path
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="RDDM color Gaussian denoising training.")
+    parser.add_argument("--train-gt-flist", default="data/DFWB_sigma25_color/flists/train_gt.flist")
+    parser.add_argument("--train-input-flist", default="data/DFWB_sigma25_color/flists/train_noisy.flist")
+    parser.add_argument("--test-gt-flist", default="data/DFWB_sigma25_color/flists/test_gt.flist")
+    parser.add_argument("--test-input-flist", default="data/DFWB_sigma25_color/flists/test_noisy.flist")
+    parser.add_argument("--results-folder", default="./results/denoising_sigma25_color")
+    parser.add_argument("--sampling-timesteps", type=int, default=5)
+    parser.add_argument("--train-num-steps", type=int, default=120000)
+    parser.add_argument("--save-and-sample-every", type=int, default=1000)
+    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--gradient-accumulate-every", type=int, default=2)
+    parser.add_argument("--lr", type=float, default=8e-5)
+    parser.add_argument("--image-size", type=int, default=256)
+    parser.add_argument("--seed", type=int, default=10)
+    parser.add_argument("--cuda-devices", default=None)
+    parser.add_argument("--resume-milestone", type=int, default=None)
+    parser.add_argument("--test-after-train", action="store_true")
+    return parser.parse_args()
+
+
+args = parse_args()
+script_dir = Path(__file__).resolve().parent
+os.chdir(script_dir)
+
+if args.cuda_devices is not None:
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.cuda_devices
+
+if str(script_dir) not in sys.path:
+    sys.path.insert(0, str(script_dir))
+dataset_root = script_dir / "datasets"
+datasets_package = ModuleType("datasets")
+datasets_package.__path__ = [str(dataset_root)]
+datasets_package.__package__ = "datasets"
+sys.modules["datasets"] = datasets_package
+
+from src.denoising_diffusion_pytorch import GaussianDiffusion  # noqa: E402
+from src.residual_denoising_diffusion_pytorch import (  # noqa: E402
+    ResidualDiffusion,
+    Trainer,
+    Unet,
+    UnetRes,
+    set_seed,
+)
+
+
+def resolve_path(path):
+    path = Path(path)
+    if path.is_absolute():
+        return str(path)
+    return str((script_dir / path).resolve())
+
+
+sys.stdout.flush()
+set_seed(args.seed)
+
+original_ddim_ddpm = False
+condition = True
+input_condition = False
+input_condition_mask = False
+sum_scale = 1
+
+folder = [
+    resolve_path(args.train_gt_flist),
+    resolve_path(args.train_input_flist),
+    resolve_path(args.test_gt_flist),
+    resolve_path(args.test_input_flist),
+]
+
+if original_ddim_ddpm:
+    model = Unet(
+        dim=64,
+        dim_mults=(1, 2, 4, 8),
+    )
+    diffusion = GaussianDiffusion(
+        model,
+        image_size=args.image_size,
+        timesteps=1000,
+        sampling_timesteps=250,
+        loss_type="l1",
+    )
+else:
+    model = UnetRes(
+        dim=64,
+        dim_mults=(1, 2, 4, 8),
+        share_encoder=0,
+        condition=condition,
+        input_condition=input_condition,
+    )
+    diffusion = ResidualDiffusion(
+        model,
+        image_size=args.image_size,
+        timesteps=1000,
+        sampling_timesteps=args.sampling_timesteps,
+        objective="pred_res_noise",
+        loss_type="l1",
+        condition=condition,
+        sum_scale=sum_scale,
+        input_condition=input_condition,
+        input_condition_mask=input_condition_mask,
+    )
+
+trainer = Trainer(
+    diffusion,
+    folder,
+    train_batch_size=args.batch_size,
+    num_samples=1,
+    train_lr=args.lr,
+    train_num_steps=args.train_num_steps,
+    gradient_accumulate_every=args.gradient_accumulate_every,
+    ema_decay=0.995,
+    amp=False,
+    convert_image_to="RGB",
+    condition=condition,
+    save_and_sample_every=args.save_and_sample_every,
+    equalizeHist=False,
+    crop_patch=True,
+    generation=False,
+    results_folder=args.results_folder,
+)
+
+if args.resume_milestone is not None:
+    trainer.load(args.resume_milestone)
+
+trainer.train()
+
+if args.test_after_train and trainer.accelerator.is_local_main_process:
+    final_milestone = args.train_num_steps // args.save_and_sample_every
+    trainer.load(final_milestone)
+    trainer.set_results_folder(str(Path(args.results_folder) / f"test_timestep_{args.sampling_timesteps}"))
+    trainer.test(last=True)
